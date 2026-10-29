@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HackTrack — Competition Manager</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">H</span><div><strong>HackTrack</strong><small>Stay ahead of every deadline</small></div></div>
+    <nav>
+      <button class="nav-btn active" data-page="dashboard"><span>◫</span> Dashboard</button>
+      <button class="nav-btn" data-page="competitions"><span>🏆</span> Competitions</button>
+      <button class="nav-btn" data-page="tasks"><span>✓</span> Tasks</button>
+      <button class="nav-btn" data-page="notes"><span>▤</span> Notes & Links</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="status-dot"></div><span>Personal workspace</span><button id="exportBtn" class="text-btn">Export JSON ↗</button></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><div class="eyebrow" id="todayLabel">YOUR WORKSPACE</div><h1 id="pageTitle">Dashboard</h1></div>
+      <button class="primary-btn" id="quickAddBtn">＋ Add competition</button>
+    </header>
+    <section id="page-dashboard" class="page active">
+      <div class="welcome"><div><div class="eyebrow light">YOUR NEXT WIN STARTS HERE</div><h2>Make room for building.<br><span>We'll track the deadlines.</span></h2><p>All your hackathons, deliverables, and reminders in one place.</p></div><div class="welcome-icon">✦</div></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Active competitions</div><div class="stat-number" id="statActive">0</div><div class="stat-foot">Currently on your list</div></div>
+        <div class="stat-card"><div class="stat-label">Deadlines in 7 days</div><div class="stat-number amber" id="statUrgent">0</div><div class="stat-foot">Worth focusing on now</div></div>
+        <div class="stat-card"><div class="stat-label">Tasks remaining</div><div class="stat-number purple" id="statTasks">0</div><div class="stat-foot">Small steps add up</div></div>
+        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-number green" id="statCompleted">0</div><div class="stat-foot">Progress worth keeping</div></div>
+      </div>
+      <div class="content-grid">
+        <div class="panel"><div class="panel-heading"><div><h3>Upcoming deadlines</h3><p>Sorted by the next important date</p></div><button class="text-btn" data-go="competitions">View all →</button></div><div id="upcomingList" class="item-list"></div></div>
+        <div class="panel"><div class="panel-heading"><div><h3>Focus list</h3><p>Your next actions</p></div><button class="text-btn" data-go="tasks">All tasks →</button></div><div id="focusList" class="item-list"></div></div>
+      </div>
+    </section>
+    <section id="page-competitions" class="page">
+      <div class="toolbar"><div><h2>Your competitions</h2><p>Keep every registration, theme, and submission in view.</p></div><button class="primary-btn" id="addCompetitionBtn">＋ Add competition</button></div>
+      <div class="filter-row"><input id="competitionSearch" placeholder="Search competitions..." /><select id="competitionFilter"><option value="active">Active only</option><option value="all">All competitions</option><option value="completed">Completed</option></select><button class="secondary-btn" id="importBtn">✦ Import with AI</button></div>
+      <div id="competitionList" class="cards-grid"></div>
+    </section>
+    <section id="page-tasks" class="page">
+      <div class="toolbar"><div><h2>Tasks</h2><p>Turn competition goals into manageable next steps.</p></div><button class="primary-btn" id="addTaskBtn">＋ Add task</button></div>
+      <div id="taskList" class="panel item-list roomy"></div>
+    </section>
+    <section id="page-notes" class="page">
+      <div class="toolbar"><div><h2>Notes & links</h2><p>Save important messages, URLs, and things to remember.</p></div><button class="primary-btn" id="addNoteBtn">＋ Save note</button></div>
+      <div id="noteList" class="cards-grid"></div>
+    </section>
+  </main>
+
+  <dialog id="competitionDialog" class="modal">
+    <form id="competitionForm" method="dialog">
+      <div class="modal-heading"><div><div class="eyebrow">COMPETITION DETAILS</div><h2 id="competitionModalTitle">Add competition</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
+      <input type="hidden" id="competitionId">
+      <div class="form-grid">
+        <label class="full">Competition name *<input id="cName" required maxlength="250" placeholder="e.g. Smart India Hackathon"></label>
+        <label>Organizer<input id="cOrganizer" placeholder="Organizer / college"></label>
+        <label>Status<select id="cStatus"><option>Registered</option><option>Preparing</option><option>Submitted</option><option>Completed</option><option>Cancelled</option><option>Archived</option></select></label>
+        <label class="full">Theme / problem statement<textarea id="cTheme" rows="2" placeholder="What is the competition about?"></textarea></label>
+        <label class="full">Official URL<input id="cUrl" type="url" placeholder="https://..."></label>
+        <label>Registration deadline<input id="cReg" type="datetime-local"></label>
+        <label>Submission deadline<input id="cSubmit" type="datetime-local"></label>
+        <label>Event starts<input id="cStart" type="datetime-local"></label>
+        <label>Event ends<input id="cEnd" type="datetime-local"></label>
+        <label class="full">What to submit<textarea id="cDeliverables" rows="2" placeholder="PPT, GitHub link, demo video, report..."></textarea></label>
+        <label class="full">Notes<textarea id="cNotes" rows="2" placeholder="Rules, team details, organizer instructions..."></textarea></label>
+      </div>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit">Save competition</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog" class="modal">
+    <form id="importForm" method="dialog">
+      <div class="modal-heading"><div><div class="eyebrow">AI-POWERED IMPORT</div><h2>Bring in a competition</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
+      <p class="muted">Paste the registration page text for best results, or enter a public URL. You'll review the extracted details before saving.</p>
+      <label class="full">Public webpage URL (optional)<input id="importUrl" type="url" placeholder="https://competition-site.com"></label>
+      <label class="full">Copied page text<textarea id="importText" rows="8" placeholder="Paste competition description, dates, eligibility, submission instructions..."></textarea></label>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit" id="runImportBtn">Extract details</button></div>
+      <div id="importStatus" class="inline-status"></div>
+    </form>
+  </dialog>
+
+  <dialog id="taskDialog" class="modal">
+    <form id="taskForm" method="dialog">
+      <div class="modal-heading"><div><div class="eyebrow">NEXT ACTION</div><h2>Add a task</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
+      <label class="full">Task title *<input id="tTitle" required placeholder="Prepare demo video"></label>
+      <label class="full">Details<textarea id="tDetails" rows="2" placeholder="What needs to be done?"></textarea></label>
+      <label class="full">Related competition<select id="tCompetition"><option value="">None</option></select></label>
+      <label class="full">Due date/time<input id="tDue" type="datetime-local"></label>
+      <label class="full">Useful link<input id="tLink" type="url" placeholder="https://..."></label>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit">Save task</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="noteDialog" class="modal">
+    <form id="noteForm" method="dialog">
+      <div class="modal-heading"><div><div class="eyebrow">QUICK CAPTURE</div><h2>Save a note or link</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
+      <label class="full">Title *<input id="nTitle" required placeholder="Submission portal / message from organizer"></label>
+      <label class="full">Message or notes<textarea id="nContent" rows="4" placeholder="Paste the important information here..."></textarea></label>
+      <label class="full">Link<input id="nLink" type="url" placeholder="https://..."></label>
+      <label class="full">Remind me at<input id="nRemind" type="datetime-local"></label>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit">Save note</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
