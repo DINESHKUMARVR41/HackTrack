@@ -8,7 +8,8 @@ A practical personal organizer for hackathons, competitions, deadlines, tasks, n
 - Dashboard with active competitions, urgent deadlines, countdowns, and sorted timeline.
 - Track registration, event, and submission dates separately.
 - Keep theme, organizer, official URL, deliverables, and notes for each competition.
-- Import details from pasted registration-page text or a public URL using Gemini API.
+- **Automatic competition import:** paste a public URL and HackTrack fetches the page, uses Gemini to extract details, saves the competition directly, and creates suggested tasks. Paste page text only as a fallback when a site blocks access.
+- Extracts eligibility, prizes, important links, themes, deadlines, event dates, and submission requirements when they are present on the page.
 - Separate Notes & Tasks pages for saved links, reminders, and to-dos.
 - Optional email reminders through SMTP.
 - Export your data as JSON.
@@ -49,10 +50,14 @@ No API key is needed for manual competition, task, or note management. AI import
 
 ## AI import
 
-- Use **Paste page text** for the most reliable results.
-- URL import tries to fetch public HTML and extract readable text. JavaScript-heavy sites, login-protected pages, and bot-protected pages may fail.
-- AI-extracted fields are returned to an editable review form; verify dates and timezone before saving.
-- Unknown dates should remain blank. The app prompts the model not to invent dates.
+1. Open **Competitions → Import with AI**.
+2. Paste the public registration or official event URL.
+3. Click **Auto import & save**. HackTrack reads the page, asks Gemini to extract the available facts, saves the competition, and creates suggested tasks automatically.
+4. The competition appears in your timeline without re-entering the fields manually.
+
+The importer attempts to collect competition name, organizer, theme, eligibility, prizes, registration deadline, event dates, submission deadline, deliverables, important links, and notes. It asks Gemini to leave unknown values blank instead of inventing them.
+
+**Limits:** public HTML pages work best. Login-protected, bot-blocked, or JavaScript-heavy pages may not expose their content to the simple fetcher. For those pages, paste the page text as a fallback. Always verify extracted dates before relying on reminders; the AI can misread ambiguous date formats.
 
 ## Email reminders
 
@@ -94,3 +99,10 @@ After starting the server, visit http://127.0.0.1:8000/docs.
 - Add Google Calendar integration and Telegram notifications.
 - Add import support for PDFs and confirmation emails.
 - Add tests, migrations, and deployment-specific health checks.
+
+## AI college-message capture and email reminders
+
+- In **Notes & Links**, choose **Analyse message**, paste a full college/organizer message, then choose **Analyse & save tasks**. HackTrack stores the original message and uses Gemini to create actionable tasks and extract explicit due dates when possible. Always verify extracted dates; ambiguous relative dates are not guessed.
+- Add additional reminder recipients in the **Reminder email recipients** field. Separate email addresses with commas. The `REMINDER_EMAIL` value in `.env` is always included as the default recipient.
+- Competition reminders still run 7, 3, and 1 day before registration/submission/event dates. For active competitions with a submission deadline, extra reminders are sent every 3 hours during the final 24 hours before the deadline.
+- Email requires valid SMTP settings and `GEMINI_API_KEY` for AI message analysis. The local scheduler requires HackTrack to remain running; it cannot send while the computer/app is off. For reliable always-on reminders, deploy a persistent scheduler.

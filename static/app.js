@@ -11,6 +11,13 @@ const api = async (path, options={}) => {
 const esc = (s="") => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = (s) => { if(!s) return "Not set"; const d=new Date(s); return isNaN(d) ? s : d.toLocaleString([], {month:"short",day:"numeric",year:"numeric",hour: s.includes("T") ? "2-digit" : undefined, minute: s.includes("T") ? "2-digit" : undefined}); };
 const shortDate = (s) => { if(!s) return null; const d=new Date(s); return isNaN(d)?null:d; };
+const linksMarkup = (raw="") => String(raw).split(/\n+/).map(line => {
+  const match = line.match(/https?:\/\/[^\s<>]+/i);
+  if (!match) return esc(line);
+  const url = match[0].replace(/[),.;]+$/, "");
+  const label = line.slice(0, match.index).replace(/[：:]\s*$/, "").trim() || url;
+  return `${esc(label)}: <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open link ↗</a>`;
+}).join("<br>");
 const active = c => !["Completed","Cancelled","Archived"].includes(c.status);
 const deadline = c => {
   const vals = [
@@ -42,15 +49,30 @@ function renderDashboard(){
 function renderCompetitions(){
   const query=$("competitionSearch").value.toLowerCase(), filter=$("competitionFilter").value;
   let list=competitions.filter(c=>(c.name+" "+c.organizer+" "+c.theme).toLowerCase().includes(query));
+  list.sort((a,b)=>{const da=deadline(a)?.date?.getTime() ?? Number.MAX_SAFE_INTEGER;const db=deadline(b)?.date?.getTime() ?? Number.MAX_SAFE_INTEGER;return da-db;});
   if(filter==="active")list=list.filter(active);if(filter==="completed")list=list.filter(c=>c.status==="Completed");
   $("competitionList").innerHTML=list.length?list.map(c=>{
-    const d=deadline(c), state=c.status==="Completed"?"good":d?statusClass(d.date):"";
-    return `<article class="competition-card"><div class="card-top"><div><h3>${esc(c.name)}</h3><div class="card-organizer">${esc(c.organizer||"Organizer not specified")}</div></div><span class="pill ${state}">${esc(c.status)}</span></div>
-    ${c.theme?`<div class="card-theme">${esc(c.theme)}</div>`:""}
-    <div class="card-deadlines">${[["Registration",c.registration_deadline],["Submission",c.submission_deadline],["Event starts",c.event_start]].filter(x=>x[1]).map(([label,val])=>{const dt=shortDate(val);return `<div class="deadline-line"><span>${label}</span><strong>${esc(fmt(val))}${dt&&active(c)?` · ${esc(countdown(dt))}`:""}</strong></div>`}).join("")||`<div class="deadline-line"><span>No dates added yet</span><strong>—</strong></div>`}
-    ${c.deliverables?`<div class="deadline-line"><span>Deliverables</span><strong>${esc(c.deliverables)}</strong></div>`:""}</div>
-    ${c.notes?`<div class="card-theme">${esc(c.notes)}</div>`:""}
-    <div class="card-footer">${c.source_url?`<a class="small-btn" href="${esc(c.source_url)}" target="_blank" rel="noopener">Official website ↗</a>`:""}<button class="small-btn" onclick="editCompetition(${c.id})">Edit</button>${c.status!=="Completed"?`<button class="small-btn" onclick="setCompetitionStatus(${c.id},'Completed')">Mark complete</button>`:`<button class="small-btn" onclick="setCompetitionStatus(${c.id},'Registered')">Reopen</button>`}<button class="small-btn danger" onclick="removeCompetition(${c.id})">Delete</button></div></article>`;
+    const d=deadline(c), n=d?daysLeft(d.date):null;
+    const state=c.status==="Completed"?"good":d?statusClass(d.date):"";
+    const dueLabel=d?`${esc(d.label)} · ${esc(fmt(d.value))}`:"No deadline added";
+    const dueCountdown=d&&active(c)?countdown(d.date):"";
+    const linkLines=c.important_links?linksMarkup(c.important_links):"";
+    return `<article class="competition-card">
+      <div class="card-top"><div class="card-title-wrap"><h3>${esc(c.name)}</h3><div class="card-organizer">${esc(c.organizer||"Organizer not specified")}</div></div><span class="pill ${state}">${esc(c.status)}</span></div>
+      ${c.theme?`<p class="card-theme">${esc(c.theme)}</p>`:""}
+      <div class="next-deadline ${n!==null&&n<=3&&n>=0&&active(c)?"deadline-soon":n!==null&&n<0&&active(c)?"deadline-overdue":""}"><span class="deadline-icon">◷</span><div class="next-deadline-copy"><small>Next important date</small><strong>${dueLabel}</strong></div>${dueCountdown?`<span class="countdown">${dueCountdown}</span>`:""}</div>
+      ${c.deliverables?`<div class="quick-detail"><span>To submit</span><p>${esc(c.deliverables)}</p></div>`:""}
+      ${(c.eligibility||c.prizes||c.important_links||c.notes||c.registration_deadline||c.event_start||c.event_end)?`<details class="more-details"><summary>More details <span>＋</span></summary><div class="details-content">
+        ${c.eligibility?`<div class="detail-item"><strong>Eligibility</strong><p>${esc(c.eligibility)}</p></div>`:""}
+        ${c.prizes?`<div class="detail-item"><strong>Prizes & benefits</strong><p>${esc(c.prizes)}</p></div>`:""}
+        ${c.registration_deadline?`<div class="detail-item"><strong>Registration deadline</strong><p>${esc(fmt(c.registration_deadline))}</p></div>`:""}
+        ${c.event_start?`<div class="detail-item"><strong>Event starts</strong><p>${esc(fmt(c.event_start))}</p></div>`:""}
+        ${c.event_end?`<div class="detail-item"><strong>Event ends</strong><p>${esc(fmt(c.event_end))}</p></div>`:""}
+        ${c.notes?`<div class="detail-item"><strong>Notes</strong><p>${esc(c.notes)}</p></div>`:""}
+        ${linkLines?`<div class="detail-item"><strong>Important links</strong><div class="important-links">${linkLines}</div></div>`:""}
+      </div></details>`:""}
+      <div class="card-footer">${c.source_url?`<a class="small-btn link-btn" href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Official page ↗</a>`:""}<button class="small-btn" onclick="editCompetition(${c.id})">Edit</button>${c.status!=="Completed"?`<button class="small-btn complete-btn" onclick="setCompetitionStatus(${c.id},'Completed')">✓ Complete</button>`:`<button class="small-btn" onclick="setCompetitionStatus(${c.id},'Registered')">Reopen</button>`}<button class="small-btn danger" onclick="removeCompetition(${c.id})">Delete</button></div>
+    </article>`;
   }).join(""):empty("No competitions found","Add one manually or use AI import.");
 }
 function renderTasks(){
@@ -69,14 +91,14 @@ function clearCompetitionForm(){ $("competitionForm").reset();$("competitionId")
 function val(id){return $(id).value.trim();}
 function openCompetition(c=null){
   clearCompetitionForm();
-  if(c){$("competitionId").value=c.id;$("competitionModalTitle").textContent="Edit competition";$("cName").value=c.name||"";$("cOrganizer").value=c.organizer||"";$("cTheme").value=c.theme||"";$("cUrl").value=c.source_url||"";$("cReg").value=(c.registration_deadline||"").slice(0,16);$("cSubmit").value=(c.submission_deadline||"").slice(0,16);$("cStart").value=(c.event_start||"").slice(0,16);$("cEnd").value=(c.event_end||"").slice(0,16);$("cDeliverables").value=c.deliverables||"";$("cNotes").value=c.notes||"";$("cStatus").value=c.status||"Registered";}
+  if(c){$("competitionId").value=c.id;$("competitionModalTitle").textContent="Edit competition";$("cName").value=c.name||"";$("cOrganizer").value=c.organizer||"";$("cTheme").value=c.theme||"";$("cEligibility").value=c.eligibility||"";$("cPrizes").value=c.prizes||"";$("cImportantLinks").value=c.important_links||"";$("cUrl").value=c.source_url||"";$("cReg").value=(c.registration_deadline||"").slice(0,16);$("cSubmit").value=(c.submission_deadline||"").slice(0,16);$("cStart").value=(c.event_start||"").slice(0,16);$("cEnd").value=(c.event_end||"").slice(0,16);$("cDeliverables").value=c.deliverables||"";$("cNotes").value=c.notes||"";$("cStatus").value=c.status||"Registered";}
   openDialog("competitionDialog");
 }
 window.editCompetition=id=>openCompetition(competitions.find(c=>c.id===id));
 $("competitionForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const id=val("competitionId");
-  const payload={name:val("cName"),organizer:val("cOrganizer"),theme:val("cTheme"),source_url:val("cUrl"),registration_deadline:val("cReg"),submission_deadline:val("cSubmit"),event_start:val("cStart"),event_end:val("cEnd"),deliverables:val("cDeliverables"),notes:val("cNotes"),status:val("cStatus"),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Kolkata"};
+  const payload={name:val("cName"),organizer:val("cOrganizer"),theme:val("cTheme"),eligibility:val("cEligibility"),prizes:val("cPrizes"),important_links:val("cImportantLinks"),source_url:val("cUrl"),registration_deadline:val("cReg"),submission_deadline:val("cSubmit"),event_start:val("cStart"),event_end:val("cEnd"),deliverables:val("cDeliverables"),notes:val("cNotes"),status:val("cStatus"),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Kolkata"};
   try{await api(id?`/api/competitions/${id}`:"/api/competitions",{method:id?"PUT":"POST",body:JSON.stringify(payload)});closeDialogs();await refresh();showToast(id?"Competition updated":"Competition saved");}catch(err){showToast(err.message);}
 });
 window.setCompetitionStatus=async(id,status)=>{const c=competitions.find(x=>x.id===id);if(!c)return;try{await api(`/api/competitions/${id}`,{method:"PUT",body:JSON.stringify({...c,status})});await refresh();showToast(`Status changed to ${status}`);}catch(e){showToast(e.message);}};
@@ -84,10 +106,22 @@ window.removeCompetition=async id=>{if(!confirm("Delete this competition? Relate
 $("competitionSearch").addEventListener("input",renderCompetitions);$("competitionFilter").addEventListener("change",renderCompetitions);
 $("importBtn").onclick=()=>{$("importForm").reset();$("importStatus").textContent="";openDialog("importDialog");};
 $("importForm").addEventListener("submit",async e=>{
-  e.preventDefault();const btn=$("runImportBtn"),status=$("importStatus");btn.disabled=true;btn.textContent="Extracting…";status.textContent="Reading the source and asking the AI to extract dates. This can take a few seconds.";
-  try{const data=await api("/api/import",{method:"POST",body:JSON.stringify({url:val("importUrl"),text:val("importText")})});closeDialogs();openCompetition({...data,status:"Registered"});showToast("Review the extracted details before saving");}
-  catch(err){status.textContent=err.message;showToast(err.message);}
-  finally{btn.disabled=false;btn.textContent="Extract details";}
+  e.preventDefault();
+  const btn=$("runImportBtn"),status=$("importStatus");
+  btn.disabled=true;btn.textContent="Reading page…";
+  status.textContent="HackTrack is reading the page, extracting details, saving the competition, and creating suggested tasks. This may take up to a minute.";
+  try{
+    const data=await api("/api/import",{method:"POST",body:JSON.stringify({url:val("importUrl"),text:val("importText")})});
+    closeDialogs();
+    await refresh();
+    showPage("competitions");
+    showToast(data.message || "Competition imported and saved automatically");
+  } catch(err) {
+    status.textContent=err.message;
+    showToast(err.message);
+  } finally {
+    btn.disabled=false;btn.textContent="Auto import & save";
+  }
 });
 function fillCompetitionSelect(){const s=$("tCompetition"),old=s.value;s.innerHTML='<option value="">None</option>'+competitions.filter(active).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");if(old)s.value=old;}
 $("addTaskBtn").onclick=()=>{$("taskForm").reset();fillCompetitionSelect();openDialog("taskDialog");};
@@ -95,7 +129,10 @@ $("taskForm").addEventListener("submit",async e=>{e.preventDefault();try{await a
 window.toggleTask=async id=>{try{await api(`/api/tasks/${id}`,{method:"PATCH"});await refresh();}catch(e){showToast(e.message);}};
 window.removeTask=async id=>{if(!confirm("Delete this task?"))return;try{await api(`/api/tasks/${id}`,{method:"DELETE"});await refresh();showToast("Task deleted");}catch(e){showToast(e.message);}};
 $("addNoteBtn").onclick=()=>{$("noteForm").reset();openDialog("noteDialog");};
-$("noteForm").addEventListener("submit",async e=>{e.preventDefault();try{await api("/api/notes",{method:"POST",body:JSON.stringify({title:val("nTitle"),content:val("nContent"),link:val("nLink"),remind_at:val("nRemind")})});closeDialogs();await refresh();showToast("Note saved");}catch(err){showToast(err.message);}});
+$("noteForm").addEventListener("submit",async e=>{e.preventDefault();const message=val("nContent").trim();if(!message){showToast("Paste the message first");return;}const btn=$("analyseMessageBtn");btn.disabled=true;btn.textContent="Analysing…";try{const result=await api("/api/notes/ai-save",{method:"POST",body:JSON.stringify({title:val("nTitle")||"College message",message,link:val("nLink")})});closeDialogs();await refresh();showToast(result.message||"Message analysed and saved");}catch(err){showToast(err.message);}finally{btn.disabled=false;btn.textContent="Analyse & save tasks";}});
 window.removeNote=async id=>{if(!confirm("Delete this note?"))return;try{await api(`/api/notes/${id}`,{method:"DELETE"});await refresh();showToast("Note deleted");}catch(e){showToast(e.message);}};
+async function loadReminderEmails(){try{const data=await api("/api/settings/reminder-emails");$("reminderEmails").value=(data.emails||[]).join(", ");$("emailSettingsStatus").textContent=data.primary_email?`Default recipient: ${data.primary_email}`:"No default recipient in .env yet; add at least one email above.";}catch(e){$("emailSettingsStatus").textContent=e.message;}}
+$("saveReminderEmailsBtn").onclick=async()=>{try{const emails=$("reminderEmails").value.split(",").map(x=>x.trim()).filter(Boolean);const data=await api("/api/settings/reminder-emails",{method:"PUT",body:JSON.stringify({emails})});$("reminderEmails").value=(data.emails||[]).join(", ");$("emailSettingsStatus").textContent=`Saved ${data.emails.length} recipient(s).`;showToast("Reminder recipients saved");}catch(e){showToast(e.message);}};
+loadReminderEmails();
 $("exportBtn").onclick=async()=>{try{const data=await api("/api/export");const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`hacktrack-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);showToast("Backup exported");}catch(e){showToast(e.message);}};
 refresh();

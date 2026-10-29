@@ -45,7 +45,8 @@
       <div id="taskList" class="panel item-list roomy"></div>
     </section>
     <section id="page-notes" class="page">
-      <div class="toolbar"><div><h2>Notes & links</h2><p>Save important messages, URLs, and things to remember.</p></div><button class="primary-btn" id="addNoteBtn">＋ Save note</button></div>
+      <div class="toolbar"><div><h2>Notes & links</h2><p>Paste college announcements. AI will find tasks and deadlines for you.</p></div><button class="primary-btn" id="addNoteBtn">✦ Analyse message</button></div>
+      <section class="panel email-settings"><div class="panel-heading"><div><h3>Reminder email recipients</h3><p>Separate multiple addresses with commas. The default .env email is included automatically.</p></div></div><div class="email-settings-row"><input id="reminderEmails" placeholder="you@example.com, teammate@example.com"><button class="secondary-btn" id="saveReminderEmailsBtn">Save recipients</button></div><small id="emailSettingsStatus" class="muted"></small></section>
       <div id="noteList" class="cards-grid"></div>
     </section>
   </main>
@@ -59,6 +60,9 @@
         <label>Organizer<input id="cOrganizer" placeholder="Organizer / college"></label>
         <label>Status<select id="cStatus"><option>Registered</option><option>Preparing</option><option>Submitted</option><option>Completed</option><option>Cancelled</option><option>Archived</option></select></label>
         <label class="full">Theme / problem statement<textarea id="cTheme" rows="2" placeholder="What is the competition about?"></textarea></label>
+        <label class="full">Eligibility<textarea id="cEligibility" rows="2" placeholder="Who can participate?"></textarea></label>
+        <label class="full">Prizes / benefits<textarea id="cPrizes" rows="2" placeholder="Prize details, grants, certificates..."></textarea></label>
+        <label class="full">Important links<textarea id="cImportantLinks" rows="3" placeholder="Rules, registration, FAQ, submission portal..."></textarea></label>
         <label class="full">Official URL<input id="cUrl" type="url" placeholder="https://..."></label>
         <label>Registration deadline<input id="cReg" type="datetime-local"></label>
         <label>Submission deadline<input id="cSubmit" type="datetime-local"></label>
@@ -74,10 +78,10 @@
   <dialog id="importDialog" class="modal">
     <form id="importForm" method="dialog">
       <div class="modal-heading"><div><div class="eyebrow">AI-POWERED IMPORT</div><h2>Bring in a competition</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
-      <p class="muted">Paste the registration page text for best results, or enter a public URL. You'll review the extracted details before saving.</p>
+      <p class="muted">Paste a public competition URL. HackTrack will read the page, extract the details, save the competition, and create suggested tasks automatically. If the website blocks access, paste its page text as a fallback.</p>
       <label class="full">Public webpage URL (optional)<input id="importUrl" type="url" placeholder="https://competition-site.com"></label>
       <label class="full">Copied page text<textarea id="importText" rows="8" placeholder="Paste competition description, dates, eligibility, submission instructions..."></textarea></label>
-      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit" id="runImportBtn">Extract details</button></div>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit" id="runImportBtn">Auto import & save</button></div>
       <div id="importStatus" class="inline-status"></div>
     </form>
   </dialog>
@@ -96,12 +100,12 @@
 
   <dialog id="noteDialog" class="modal">
     <form id="noteForm" method="dialog">
-      <div class="modal-heading"><div><div class="eyebrow">QUICK CAPTURE</div><h2>Save a note or link</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
-      <label class="full">Title *<input id="nTitle" required placeholder="Submission portal / message from organizer"></label>
-      <label class="full">Message or notes<textarea id="nContent" rows="4" placeholder="Paste the important information here..."></textarea></label>
+      <div class="modal-heading"><div><div class="eyebrow">AI MESSAGE ANALYSIS</div><h2>Paste a college message</h2></div><button type="button" class="icon-btn close-dialog">×</button></div>
+      <label class="full">Short title (optional)<input id="nTitle" placeholder="Auto-generated from the message"></label>
+      <label class="full">Paste the full message *<textarea id="nContent" rows="8" required placeholder="Paste the college WhatsApp message, email, circular, or announcement exactly as received..."></textarea></label>
       <label class="full">Link<input id="nLink" type="url" placeholder="https://..."></label>
-      <label class="full">Remind me at<input id="nRemind" type="datetime-local"></label>
-      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit">Save note</button></div>
+      <p class="muted">AI will save the original message, create tasks, and extract dates when clear. Verify dates before relying on reminders.</p>
+      <div class="modal-actions"><button type="button" class="secondary-btn close-dialog">Cancel</button><button class="primary-btn" type="submit" id="analyseMessageBtn">Analyse & save tasks</button></div>
     </form>
   </dialog>
   <div id="toast" class="toast"></div>
