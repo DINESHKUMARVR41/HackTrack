@@ -46,7 +46,7 @@
     </section>
     <section id="page-notes" class="page">
       <div class="toolbar"><div><h2>Notes & links</h2><p>Paste college announcements. AI will find tasks and deadlines for you.</p></div><button class="primary-btn" id="addNoteBtn">✦ Analyse message</button></div>
-      <section class="panel email-settings"><div class="panel-heading"><div><h3>Reminder email recipients</h3><p>Separate multiple addresses with commas. The default .env email is included automatically.</p></div></div><div class="email-settings-row"><input id="reminderEmails" placeholder="you@example.com, teammate@example.com"><button class="secondary-btn" id="saveReminderEmailsBtn">Save recipients</button></div><small id="emailSettingsStatus" class="muted"></small></section>
+      <section class="panel email-settings"><div class="panel-heading"><div><h3>Notification setup</h3><p>Choose ntfy push notifications, Textbee SMS, or email in your .env file. Keep API keys private.</p></div></div><div class="email-settings-row"><button class="primary-btn" id="testNotificationBtn">Send test notification</button></div><small id="notificationSettingsStatus" class="muted">Checking notification configuration…</small><p class="muted">Provider configuration is managed through environment variables, not stored in the browser.</p></section>
       <div id="noteList" class="cards-grid"></div>
     </section>
   </main>

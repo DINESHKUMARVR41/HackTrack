@@ -1,108 +1,136 @@
 # HackTrack — Hackathon & Competition Manager
 
-A practical personal organizer for hackathons, competitions, deadlines, tasks, notes, and reminders.
+HackTrack is a personal organizer for hackathons, competitions, deadlines, tasks, notes, and reminders.
 
 ## Features
 
-- Add, edit, delete, complete, and archive competition records (status values include Registered, Preparing, Submitted, Completed, Cancelled, Archived).
-- Dashboard with active competitions, urgent deadlines, countdowns, and sorted timeline.
+- Add, edit, delete, complete, and archive competitions.
+- Dashboard with upcoming deadlines and countdowns.
 - Track registration, event, and submission dates separately.
-- Keep theme, organizer, official URL, deliverables, and notes for each competition.
-- **Automatic competition import:** paste a public URL and HackTrack fetches the page, uses Gemini to extract details, saves the competition directly, and creates suggested tasks. Paste page text only as a fallback when a site blocks access.
-- Extracts eligibility, prizes, important links, themes, deadlines, event dates, and submission requirements when they are present on the page.
-- Separate Notes & Tasks pages for saved links, reminders, and to-dos.
-- Optional email reminders through SMTP.
-- Export your data as JSON.
-- SQLite database: no external database account required for local use.
+- Save organizer, theme, official URL, deliverables, eligibility, prizes, important links, and notes.
+- Import a public competition URL with Gemini AI and save the extracted details.
+- Paste college/organizer messages for AI-assisted task and deadline extraction.
+- Create notes and tasks with due dates.
+- Select reminder provider using `REMINDER_MODE`: `ntfy`, `textbee`, or `email`.
+- Send a test notification from the app.
+- Export data as JSON.
+- SQLite storage for local use.
 
 ## Requirements
 
 - Python 3.11 or newer
-- Optional Gemini API key from https://aistudio.google.com/
-- Optional SMTP email account for email reminders
+- Optional Gemini API key from https://aistudio.google.com/ for AI extraction
+- One optional reminder provider: ntfy, Textbee, or email
 
 ## Run locally on Windows (PowerShell)
 
-```powershell
-# 1. Extract the ZIP and open the hacktrack folder in VS Code
-cd path\to\hacktrack
+1. Extract the ZIP and open the project folder in VS Code.
+2. In PowerShell, navigate to the project directory:
 
-# 2. Create and activate a virtual environment
+```powershell
+cd path\to\HackTrack-main
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# 3. Install packages
 python -m pip install -r requirements.txt
-
-# 4. Create your local environment file
 Copy-Item .env.example .env
-
-# 5. Edit .env and add GEMINI_API_KEY for AI import.
-#    Add SMTP settings if you want email reminders.
-
-# 6. Start the server
-uvicorn app:app --reload
-
-# 7. Open http://127.0.0.1:8000
 ```
 
-No API key is needed for manual competition, task, or note management. AI import requires a Gemini API key. Do not commit `.env` to GitHub.
+3. Open `.env` in VS Code and configure the AI key if you want AI extraction and configure one notification provider using the instructions below.
+4. Start HackTrack:
 
-## AI import
+```powershell
+uvicorn app:app --reload
+```
 
-1. Open **Competitions → Import with AI**.
-2. Paste the public registration or official event URL.
-3. Click **Auto import & save**. HackTrack reads the page, asks Gemini to extract the available facts, saves the competition, and creates suggested tasks automatically.
-4. The competition appears in your timeline without re-entering the fields manually.
+5. Open http://127.0.0.1:8000. The **Notification setup** panel shows the selected provider and includes a test notification button.
 
-The importer attempts to collect competition name, organizer, theme, eligibility, prizes, registration deadline, event dates, submission deadline, deliverables, important links, and notes. It asks Gemini to leave unknown values blank instead of inventing them.
+No Gemini key is required for manually adding competitions, tasks, and notes.
 
-**Limits:** public HTML pages work best. Login-protected, bot-blocked, or JavaScript-heavy pages may not expose their content to the simple fetcher. For those pages, paste the page text as a fallback. Always verify extracted dates before relying on reminders; the AI can misread ambiguous date formats.
+## Option A — ntfy push notifications (recommended for easiest setup)
 
-## Email reminders
+ntfy sends a push notification to the ntfy app on your phone. It does not require a SIM or an SMS provider.
 
-Set these in `.env`:
+1. Install the ntfy app from https://ntfy.sh/ or your device's app store.
+2. Open the app and subscribe to a topic.
+3. Choose a long, unpredictable topic name. Example format: `hacktrack-dinesh-` followed by a long random string. Do not use the example literally.
+4. In `.env`, set:
 
 ```env
+REMINDER_MODE=ntfy
+NTFY_SERVER=https://ntfy.sh
+NTFY_TOPIC=your-long-random-topic-name
+NTFY_TOKEN=
+NTFY_PRIORITY=3
+```
+
+5. Save `.env`, restart the server, and click **Send test notification** in HackTrack.
+6. If the phone receives the test notification, ntfy is configured.
+
+**Privacy note:** public ntfy topics are not private by default. Anyone who discovers the topic may be able to publish to or read messages from it. Use an unpredictable topic name and avoid sending sensitive personal information. For stronger access control, use an authenticated ntfy setup/server and configure `NTFY_TOKEN` if applicable.
+
+## Option B — Textbee SMS
+
+Textbee sends SMS using your own Android phone and SIM. The phone needs Android 7.0 or newer, an active SIM capable of sending SMS, internet access, and permission to run in the background. Check current plan limits and carrier charges before relying on it.
+
+1. Create an account at https://textbee.dev/ and verify your email.
+2. Download and install the Android app from https://textbee.dev/download.
+3. Register your phone using the dashboard QR code or the app's manual registration flow.
+4. Grant the required SMS permission. Set the app's battery use to unrestricted and keep the phone connected to the internet.
+5. Create an API key in the Textbee dashboard.
+6. In `.env`, set:
+
+```env
+REMINDER_MODE=textbee
+TEXTBEE_API_KEY=your_textbee_api_key
+TEXTBEE_RECIPIENTS=+91XXXXXXXXXX
+TEXTBEE_API_URL=https://api.textbee.dev/api/v1/gateway/send-sms
+```
+
+Replace `+91XXXXXXXXXX` with the recipient's number in international format. Multiple recipients can be comma-separated. Do not commit your API key to GitHub.
+
+7. Save `.env`, restart HackTrack, and click **Send test notification**.
+8. If the API accepts the message, check Textbee's message history and your phone's SMS app to verify actual delivery. An API success response means the request was accepted, not necessarily delivered.
+
+Textbee's free plan and usage limits may change. The phone must stay powered on, connected, and allowed to run in the background. Messages can be delayed if the phone is offline or Android pauses the app.
+
+## Option C — Email reminders
+
+Set `REMINDER_MODE=email` and configure SMTP settings in `.env`:
+
+```env
+REMINDER_MODE=email
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=youraddress@gmail.com
-SMTP_PASSWORD=your-16-character-app-password
+SMTP_PASSWORD=your-gmail-app-password
 REMINDER_EMAIL=youraddress@gmail.com
 ```
 
-For Gmail, create an App Password after enabling 2-Step Verification. Do not use your regular Google account password.
+For Gmail, use an App Password (after enabling 2-Step Verification), not your normal Google password. Additional email recipients can still be managed using the existing reminder-email API endpoints.
 
-The local scheduler checks once per minute while the app process is running. It emails competition reminders 7, 3, and 1 day before registration deadlines, submission deadlines, and event start dates. It also sends note reminders at their scheduled time and task reminders when tasks become overdue.
+## Reminder schedule
 
-**Important limitations:**
-- Local email scheduling works only while the Python process is running.
-- For production, run the scheduler as a persistent worker or scheduled job. Some free web hosts sleep or stop background processes, so reminders may not run reliably there.
-- The current implementation is designed for a single personal user/local MVP, not a multi-user public service.
-- Date-only values are interpreted using the server's local timezone. Include a time for more precise reminders.
-- Competition reminders are sent only when the scheduler catches the reminder window. Keep the process running; production scheduling should use a robust persistent scheduler and wider missed-run handling.
-- Email delivery depends on SMTP provider limits and configuration.
+The scheduler checks once per minute while the local application process is running. It sends:
+
+- Competition reminders 7, 3, and 1 day before registration deadlines, submission deadlines, and event start dates.
+- Extra submission reminders every 3 hours during the final 24 hours before a submission deadline.
+- Note reminders at the requested time.
+- Task reminders when tasks become overdue.
+
+Successful reminder requests are recorded to reduce duplicate notifications. A notification provider accepting a request does not guarantee final delivery.
+
+## Deployment notes — important
+
+- `ENABLE_LOCAL_SCHEDULER=true` starts the scheduler inside the web application. This is suitable for local testing, but a host that sleeps, restarts, or runs multiple app instances can miss or duplicate reminders.
+- For hosted deployment, use a persistent database and a separate scheduled job/worker. If a GitHub Actions workflow runs the reminder checker, set `ENABLE_LOCAL_SCHEDULER=false` on the web service and make the scheduled job use the same database. GitHub scheduled workflows can be delayed; do not treat them as exact-time delivery guarantees.
+- The default database is `hacktrack.db`, a local SQLite file. Do not rely on it for permanent storage on hosts with ephemeral filesystems. Back it up using Export JSON or move to persistent storage/PostgreSQL for hosted deployment.
+- This project is a single-user personal MVP and does not include authentication. Do not expose it publicly with private data or notification controls until authentication and appropriate access restrictions have been added.
+- Keep `.env`, API keys, and private notification topic details out of GitHub.
 
 ## Data storage and backup
 
-Data is stored in `hacktrack.db` in the project folder by default. Use **Export JSON** regularly to create a backup. Deleting a competition sets associated tasks' competition links to null, rather than deleting the tasks.
+By default, data is stored in `hacktrack.db` in the project folder. Use **Export JSON** regularly. Deleting a competition unlinks associated tasks rather than deleting them.
 
-## API docs
+## API documentation
 
 After starting the server, visit http://127.0.0.1:8000/docs.
-
-## Suggested next improvements
-
-- Add authentication before any public deployment.
-- Move to PostgreSQL/Supabase for hosted multi-device usage.
-- Add a robust persistent scheduler such as a dedicated worker/cron service.
-- Add Google Calendar integration and Telegram notifications.
-- Add import support for PDFs and confirmation emails.
-- Add tests, migrations, and deployment-specific health checks.
-
-## AI college-message capture and email reminders
-
-- In **Notes & Links**, choose **Analyse message**, paste a full college/organizer message, then choose **Analyse & save tasks**. HackTrack stores the original message and uses Gemini to create actionable tasks and extract explicit due dates when possible. Always verify extracted dates; ambiguous relative dates are not guessed.
-- Add additional reminder recipients in the **Reminder email recipients** field. Separate email addresses with commas. The `REMINDER_EMAIL` value in `.env` is always included as the default recipient.
-- Competition reminders still run 7, 3, and 1 day before registration/submission/event dates. For active competitions with a submission deadline, extra reminders are sent every 3 hours during the final 24 hours before the deadline.
-- Email requires valid SMTP settings and `GEMINI_API_KEY` for AI message analysis. The local scheduler requires HackTrack to remain running; it cannot send while the computer/app is off. For reliable always-on reminders, deploy a persistent scheduler.

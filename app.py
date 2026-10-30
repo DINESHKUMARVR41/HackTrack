@@ -424,31 +424,83 @@ def parse_datetime(value):
     except Exception:
         return None
 
-def send_email(subject, body):
-    host = os.getenv("SMTP_HOST", "").strip()
-    user = os.getenv("SMTP_USER", "").strip()
-    password = os.getenv("SMTP_PASSWORD", "").strip()
-    primary = os.getenv("REMINDER_EMAIL", "").strip()
-    port = int(os.getenv("SMTP_PORT", "587"))
-    with db() as con:
-        row = con.execute("SELECT setting_value FROM app_settings WHERE setting_key='reminder_emails'").fetchone()
-    extras = json.loads(row["setting_value"]) if row and row["setting_value"] else []
-    recipients = list(dict.fromkeys(([primary] if primary else []) + extras))
-    if not all([host, user, password]) or not recipients:
-        return False, "SMTP settings or reminder recipients not configured"
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = user
-    msg["To"] = ", ".join(recipients)
-    msg.set_content(body)
+def send_notification(subject, body):
+    """Send a reminder through the selected provider: ntfy, textbee, or email."""
+    mode = os.getenv("REMINDER_MODE", "ntfy").strip().lower()
     try:
-        with smtplib.SMTP(host, port, timeout=20) as server:
-            server.starttls()
-            server.login(user, password)
-            server.send_message(msg, to_addrs=recipients)
-        return True, "sent"
+        if mode == "ntfy":
+            topic = os.getenv("NTFY_TOPIC", "").strip()
+            if not topic:
+                return False, "NTFY_TOPIC is missing from .env"
+            # Use a private/unpredictable topic name. Public ntfy topics are not private by default.
+            server = os.getenv("NTFY_SERVER", "https://ntfy.sh").strip().rstrip("/")
+            headers = {"Title": subject[:250], "Priority": os.getenv("NTFY_PRIORITY", "3")}
+            token = os.getenv("NTFY_TOKEN", "").strip()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            response = requests.post(f"{server}/{topic}", data=body.encode("utf-8"), headers=headers, timeout=20)
+            response.raise_for_status()
+            return True, "ntfy accepted notification"
+
+        if mode == "textbee":
+            api_key = os.getenv("TEXTBEE_API_KEY", "").strip()
+            recipients = [x.strip() for x in os.getenv("TEXTBEE_RECIPIENTS", "").split(",") if x.strip()]
+            if not api_key or not recipients:
+                return False, "Set TEXTBEE_API_KEY and TEXTBEE_RECIPIENTS in .env"
+            message = f"{subject}\n\n{body}"
+            response = requests.post(
+                os.getenv("TEXTBEE_API_URL", "https://api.textbee.dev/api/v1/gateway/send-sms").strip(),
+                headers={"x-api-key": api_key, "Content-Type": "application/json"},
+                json={"recipients": recipients, "message": message[:1500]}, timeout=25
+            )
+            response.raise_for_status()
+            return True, "Textbee accepted the SMS request; check message status for delivery"
+
+        if mode == "email":
+            host = os.getenv("SMTP_HOST", "").strip()
+            user = os.getenv("SMTP_USER", "").strip()
+            password = os.getenv("SMTP_PASSWORD", "").strip()
+            primary = os.getenv("REMINDER_EMAIL", "").strip()
+            port = int(os.getenv("SMTP_PORT", "587"))
+            with db() as con:
+                row = con.execute("SELECT setting_value FROM app_settings WHERE setting_key='reminder_emails'").fetchone()
+            extras = json.loads(row["setting_value"]) if row and row["setting_value"] else []
+            recipients = list(dict.fromkeys(([primary] if primary else []) + extras))
+            if not all([host, user, password]) or not recipients:
+                return False, "SMTP settings or reminder recipients are not configured"
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = user
+            msg["To"] = ", ".join(recipients)
+            msg.set_content(body)
+            with smtplib.SMTP(host, port, timeout=20) as server:
+                server.starttls()
+                server.login(user, password)
+                server.send_message(msg, to_addrs=recipients)
+            return True, "email sent"
+
+        return False, f"Unsupported REMINDER_MODE '{mode}'. Use ntfy, textbee, or email."
     except Exception as exc:
         return False, str(exc)
+
+@app.get("/api/notifications/status")
+def notification_status():
+    mode = os.getenv("REMINDER_MODE", "ntfy").strip().lower()
+    if mode == "textbee":
+        configured = bool(os.getenv("TEXTBEE_API_KEY", "").strip() and os.getenv("TEXTBEE_RECIPIENTS", "").strip())
+    elif mode == "email":
+        configured = bool(os.getenv("SMTP_HOST", "").strip() and os.getenv("SMTP_USER", "").strip() and os.getenv("SMTP_PASSWORD", "").strip() and (os.getenv("REMINDER_EMAIL", "").strip()))
+    else:
+        configured = bool(os.getenv("NTFY_TOPIC", "").strip())
+    return {"mode": mode, "configured": configured, "scheduler_enabled": os.getenv("ENABLE_LOCAL_SCHEDULER", "true").lower() == "true"}
+
+@app.post("/api/notifications/test")
+def test_notification():
+    mode = os.getenv("REMINDER_MODE", "ntfy").strip().lower()
+    ok, message = send_notification("HackTrack test notification", f"Your HackTrack notification setup is working. Provider: {mode}.")
+    if not ok:
+        raise HTTPException(400, message)
+    return {"ok": True, "mode": mode, "message": message}
 
 def reminder_loop():
     # Local development scheduler. Production deployment should use a persistent worker/cron.
@@ -468,7 +520,7 @@ def reminder_loop():
                             key = f"submission-3hour:{comp['id']}:{bucket}"
                             exists = con.execute("SELECT id FROM sent_reminders WHERE reminder_key=?", (key,)).fetchone()
                             if not exists:
-                                ok, _ = send_email(f"HackTrack: submission due soon — {comp['name']}", f"Submission deadline is approaching.\n\nCompetition: {comp['name']}\nTime remaining: about {hours_left:.1f} hours\nDeadline: {comp['submission_deadline']}\nRequired deliverables: {comp['deliverables']}\nOpen competition: {comp['source_url']}\n\nPlease verify the deadline and submit on time.")
+                                ok, _ = send_notification(f"HackTrack: submission due soon — {comp['name']}", f"Submission deadline is approaching.\n\nCompetition: {comp['name']}\nTime remaining: about {hours_left:.1f} hours\nDeadline: {comp['submission_deadline']}\nRequired deliverables: {comp['deliverables']}\nOpen competition: {comp['source_url']}\n\nPlease verify the deadline and submit on time.")
                                 if ok:
                                     con.execute("INSERT OR IGNORE INTO sent_reminders(reminder_key, sent_at) VALUES(?,?)", (key, now_iso()))
                     for field in ["registration_deadline", "submission_deadline", "event_start"]:
@@ -482,14 +534,14 @@ def reminder_loop():
                                 key = f"competition:{comp['id']}:{field}:{days_before}"
                                 exists = con.execute("SELECT id FROM sent_reminders WHERE reminder_key=?", (key,)).fetchone()
                                 if not exists:
-                                    ok, _ = send_email(f"HackTrack reminder: {comp['name']}", f"{comp['name']} has {field.replace('_',' ')} in {days_before} day(s).\nDeadline: {comp[field]}\nTheme: {comp['theme']}\nLink: {comp['source_url']}")
+                                    ok, _ = send_notification(f"HackTrack reminder: {comp['name']}", f"{comp['name']} has {field.replace('_',' ')} in {days_before} day(s).\nDeadline: {comp[field]}\nTheme: {comp['theme']}\nLink: {comp['source_url']}")
                                     if ok:
                                         con.execute("INSERT OR IGNORE INTO sent_reminders(reminder_key, sent_at) VALUES(?,?)", (key, now_iso()))
                 for note in notes:
                     due = parse_datetime(note["remind_at"])
                     if due and due <= current:
                         key = f"note:{note['id']}"
-                        ok, _ = send_email(f"HackTrack note reminder: {note['title']}", f"{note['title']}\n\n{note['content']}\n{note['link']}")
+                        ok, _ = send_notification(f"HackTrack note reminder: {note['title']}", f"{note['title']}\n\n{note['content']}\n{note['link']}")
                         if ok:
                             con.execute("UPDATE notes SET reminded=1 WHERE id=?", (note["id"],))
                             con.execute("INSERT OR IGNORE INTO sent_reminders(reminder_key, sent_at) VALUES(?,?)", (key, now_iso()))
@@ -499,7 +551,7 @@ def reminder_loop():
                         key = f"task-overdue:{task['id']}"
                         exists = con.execute("SELECT id FROM sent_reminders WHERE reminder_key=?", (key,)).fetchone()
                         if not exists:
-                            ok, _ = send_email(f"HackTrack task due: {task['title']}", f"Task: {task['title']}\nDue: {task['due_at']}\n{task['details']}\n{task['link']}")
+                            ok, _ = send_notification(f"HackTrack task due: {task['title']}", f"Task: {task['title']}\nDue: {task['due_at']}\n{task['details']}\n{task['link']}")
                             if ok:
                                 con.execute("INSERT OR IGNORE INTO sent_reminders(reminder_key, sent_at) VALUES(?,?)", (key, now_iso()))
         except Exception as exc:
